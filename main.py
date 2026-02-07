@@ -1,6 +1,4 @@
-def main():
-    print("Hello from fastapis-proyect!")
-
+import uvicorn
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run("app.app:app", host="0.0.0.0", port=3001, reload=True)
