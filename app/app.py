@@ -1,40 +1,56 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
 from app.schemas import PostCreate, PostRespone
-
-app = FastAPI()
-
-
-text_posts = {
-    1: {"title": "New Post", "content": "Cool test post"},
-    2: {"title": "Learning FastAPI", "content": "FastAPI is fast and easy to use"},
-    3: {"title": "Python Tips", "content": "Use list comprehensions to write cleaner code"},
-    4: {"title": "Backend Development", "content": "Building APIs is essential for modern apps"},
-    5: {"title": "Testing APIs", "content": "Postman helps test endpoints easily"},
-    6: {"title": "Async Programming", "content": "Async improves performance in web servers"},
-    7: {"title": "Database Integration", "content": "SQLAlchemy works great with FastAPI"},
-    8: {"title": "Authentication", "content": "JWT is commonly used for API security"},
-    9: {"title": "Deployment", "content": "Docker helps deploy applications consistently"},
-    10: {"title": "Code Organization", "content": "Keep your project structure clean and modular"}
-}
+from app.db import Post, create_db_and_tables, get_async_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from contextlib import asynccontextmanager+
+from  sqlalchemy import select
 
 
-@app.get("/post")
-def get_all_posts(limit: int = None):
-    if limit: 
-        return list(text_posts.values())[:limit] 
-    return text_posts
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_db_and_tables()
+    yield
 
 
+app = FastAPI(lifespan=lifespan)
 
-@app.get("/post/{id}")
-def get_post(id: int): 
-    if id not in text_posts:
-        raise HTTPException(status_code=404, detail="Post not found")
-    return text_posts.get(id)
 
-@app.post("/post")
-def create_post(post: PostCreate) -> PostRespone:
-    new_post = {"title": post.title, "content": post.content}
-    text_posts[max(text_posts.keys()) + 1] = new_post
-    return PostRespone
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...), 
+    caption: str = Form(""), 
+    session: AsyncSession = Depends(get_async_session)
+): 
+    post = Post(
+        caption=caption,
+        url="dummyurl", 
+        file_type="photo", 
+        file_name="dummy name"
+    )
 
+    session.add(post)
+    await session.commit()
+    return post
+
+@app.get("/feed")
+async def get_feed(
+        session: AsyncSession = Depends(get_async_session)
+): 
+
+    result = await session.execute(select(Post).order_by(Post.created_at.desc()))
+    posts = [row[0] for row in result.all()]
+
+    posts_data = []
+    for post in posts:
+        posts_data.append(
+            {
+                "id": str(post.id), 
+                "caption": post.caption, 
+                "url": post.url, 
+                "file_type": post.file_type, 
+                "file_name": post.file_name, 
+                "created_at": post.created_at.isoformat()
+            }
+        )
+
+    return {"posts": posts_data}
