@@ -2,8 +2,10 @@ from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
 from app.schemas import PostCreate, PostRespone
 from app.db import Post, create_db_and_tables, get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from contextlib import asynccontextmanager+
+from contextlib import asynccontextmanager
 from  sqlalchemy import select
+from app.images import imagekit
+from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
 
 
 @asynccontextmanager
