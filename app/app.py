@@ -23,16 +23,42 @@ async def upload_file(
     caption: str = Form(""), 
     session: AsyncSession = Depends(get_async_session)
 ): 
-    post = Post(
-        caption=caption,
-        url="dummyurl", 
-        file_type="photo", 
-        file_name="dummy name"
-    )
+    
+    temp_file_path = None
 
-    session.add(post)
-    await session.commit()
-    return post
+    try: 
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitttext(file.filename)[1]) as temp_file: 
+            temp_file_path = temp_file.name
+            shutil.copyfileobj(file.file, temp_file)
+
+        upload_result = imagekit.upload_file(
+            file=open(temp_file_path, "rb"),
+            file_name=file.filename, 
+            options=UploadFileRequestOptions(
+                use_unique_file_name=True, 
+                tags["backend-upload"]
+            )
+        )
+
+        if upload_result.response.http_satus_code == 200:
+
+            post = Post(
+                caption=caption,
+                url=upload_result.url, 
+                file_type="video" if file.content_type.startswith("video/") else "image", 
+                file_name="dummy name"
+            )
+
+            session.add(post)
+            await session.commit()
+            return post
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
+    finally: 
+        if temp_file_path and os.path.exists(temp_file_path): 
+            os.unlink(temp_file_path)
+        file.file.close()
+
 
 @app.get("/feed")
 async def get_feed(
